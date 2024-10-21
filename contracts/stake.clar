@@ -7,8 +7,10 @@
 (define-constant err-invalid-proposal (err u102))
 (define-constant err-proposal-expired (err u103))
 (define-constant err-insufficient-stake (err u104))
+(define-constant err-quorum-not-reached (err u105))
 (define-constant proposal-expiration-blocks u144)
-(define-constant minimum-stake-to-vote u1000000) ;; 1 STX minimum stake to vote
+(define-constant minimum-stake-to-vote u1000000)
+(define-constant quorum-percentage u30) ;; 30% of total pool balance needed
 
 ;; Define data variables
 (define-data-var total-pool-balance uint u0)
@@ -24,10 +26,16 @@
     amount: uint,
     votes-for: uint,
     votes-against: uint,
+    total-votes: uint,
     status: (string-ascii 20),
     beneficiary: principal,
     created-at: uint
   }
+)
+
+;; Helper function to calculate quorum threshold
+(define-private (calculate-quorum-threshold)
+  (/ (* (var-get total-pool-balance) quorum-percentage) u100)
 )
 
 ;; Define owner-only modifier
@@ -74,6 +82,7 @@
           amount: amount,
           votes-for: u0,
           votes-against: u0,
+          total-votes: u0,
           status: "active",
           beneficiary: beneficiary,
           created-at: block-height
@@ -93,15 +102,16 @@
   )
     (asserts! (>= user-balance minimum-stake-to-vote) err-insufficient-stake)
     (asserts! (< (- block-height (get created-at proposal)) proposal-expiration-blocks) err-proposal-expired)
-    (if vote-for
-      (map-set proposals proposal-id
-        (merge proposal { votes-for: (+ (get votes-for proposal) user-balance) })
-      )
-      (map-set proposals proposal-id
-        (merge proposal { votes-against: (+ (get votes-against proposal) user-balance) })
-      )
+    
+    (let ((updated-proposal 
+      (merge proposal { 
+        votes-for: (if vote-for (+ (get votes-for proposal) user-balance) (get votes-for proposal)),
+        votes-against: (if vote-for (get votes-against proposal) (+ (get votes-against proposal) user-balance)),
+        total-votes: (+ (get total-votes proposal) user-balance)
+      })))
+      (map-set proposals proposal-id updated-proposal)
+      (ok true)
     )
-    (ok true)
   )
 )
 
@@ -111,6 +121,7 @@
       (proposal (unwrap! (map-get? proposals proposal-id) err-invalid-proposal))
     )
       (asserts! (< (- block-height (get created-at proposal)) proposal-expiration-blocks) err-proposal-expired)
+      (asserts! (>= (get total-votes proposal) (calculate-quorum-threshold)) err-quorum-not-reached)
       (if (and
         (is-eq (get status proposal) "active")
         (> (get votes-for proposal) (get votes-against proposal))
@@ -140,6 +151,10 @@
 
 (define-read-only (get-proposal (proposal-id uint))
   (map-get? proposals proposal-id)
+)
+
+(define-read-only (get-quorum-threshold)
+  (calculate-quorum-threshold)
 )
 
 (define-read-only (is-proposal-expired (proposal-id uint))
