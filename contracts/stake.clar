@@ -1,4 +1,4 @@
-;; StakeWise: DAO Investment Pool Smart Contract
+;;StakeWise: DAO Investment Pool Smart Contract
 
 ;; Define constants
 (define-constant contract-owner tx-sender)
@@ -23,6 +23,11 @@
     status: (string-ascii 20),
     beneficiary: principal
   }
+)
+
+;; Define owner-only modifier
+(define-private (is-contract-owner)
+  (is-eq tx-sender contract-owner)
 )
 
 ;; Define functions
@@ -57,22 +62,25 @@
   )
 )
 
-;; Function to create a new proposal
+;; Function to create a new proposal (owner only)
 (define-public (create-proposal (description (string-ascii 256)) (amount uint) (beneficiary principal))
-  (let ((new-proposal-id (+ (var-get proposal-count) u1)))
-    (map-set proposals new-proposal-id
-      {
-        id: new-proposal-id,
-        description: description,
-        amount: amount,
-        votes-for: u0,
-        votes-against: u0,
-        status: "active",
-        beneficiary: beneficiary
-      }
+  (if (is-contract-owner)
+    (let ((new-proposal-id (+ (var-get proposal-count) u1)))
+      (map-set proposals new-proposal-id
+        {
+          id: new-proposal-id,
+          description: description,
+          amount: amount,
+          votes-for: u0,
+          votes-against: u0,
+          status: "active",
+          beneficiary: beneficiary
+        }
+      )
+      (var-set proposal-count new-proposal-id)
+      (ok new-proposal-id)
     )
-    (var-set proposal-count new-proposal-id)
-    (ok new-proposal-id)
+    err-owner-only
   )
 )
 
@@ -94,24 +102,27 @@
   )
 )
 
-;; Function to execute a proposal
+;; Function to execute a proposal (owner only)
 (define-public (execute-proposal (proposal-id uint))
-  (let (
-    (proposal (unwrap! (map-get? proposals proposal-id) err-invalid-proposal))
-  )
-    (if (and
-      (is-eq (get status proposal) "active")
-      (> (get votes-for proposal) (get votes-against proposal))
+  (if (is-contract-owner)
+    (let (
+      (proposal (unwrap! (map-get? proposals proposal-id) err-invalid-proposal))
     )
-      (begin
-        (try! (as-contract (stx-transfer? (get amount proposal) tx-sender (get beneficiary proposal))))
-        (map-set proposals proposal-id
-          (merge proposal { status: "executed" })
-        )
-        (ok true)
+      (if (and
+        (is-eq (get status proposal) "active")
+        (> (get votes-for proposal) (get votes-against proposal))
       )
-      (err u103)
+        (begin
+          (try! (as-contract (stx-transfer? (get amount proposal) tx-sender (get beneficiary proposal))))
+          (map-set proposals proposal-id
+            (merge proposal { status: "executed" })
+          )
+          (ok true)
+        )
+        (err u103)
+      )
     )
+    err-owner-only
   )
 )
 
