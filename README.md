@@ -16,10 +16,11 @@ The DAO Investment Pool allows members to pool funds and collectively invest in 
 
 1. Stake-based governance (members vote proportionally to their investment)
 2. Minimum stake requirement for voting (1 STX)
-3. Automatic profit distribution
-4. DAO treasury management for pooling and investing
-5. Time-locked proposal system
-6. Transparent voting mechanism
+3. Quorum requirement (30% of total pool balance must vote)
+4. Automatic profit distribution
+5. DAO treasury management
+6. Time-locked proposal system
+7. Transparent voting mechanism
 
 ## Smart Contract Functions
 
@@ -30,45 +31,32 @@ The DAO Investment Pool allows members to pool funds and collectively invest in 
 ### Proposal Management
 - `create-proposal(description: string-ascii, amount: uint, beneficiary: principal)`: Create investment proposal
 - `vote(proposal-id: uint, vote-for: bool)`: Vote on proposals (requires minimum 1 STX stake)
-- `execute-proposal(proposal-id: uint)`: Execute passed proposals
+- `execute-proposal(proposal-id: uint)`: Execute passed proposals (requires quorum)
 
 ### Read-only Functions
 - `get-balance(user: principal)`: View user's staked balance
 - `get-total-pool-balance()`: View total pool balance
 - `get-proposal(proposal-id: uint)`: View proposal details
+- `get-quorum-threshold()`: Get current quorum requirement
 - `is-proposal-expired(proposal-id: uint)`: Check proposal expiration status
 
-## Getting Started
+## Security Features
 
-1. Install [Clarinet](https://github.com/hirosystems/clarinet)
-2. Clone repository
-3. Run tests: `clarinet test`
-4. Deploy contract: `clarinet deploy`
+- Minimum stake requirement prevents vote manipulation
+- Quorum threshold ensures high participation (30% minimum)
+- 24-hour proposal review period
+- Owner-only access for critical functions
+- Balance verification for unstaking
+- Proposal expiration checks
 
 ## Usage
 
 1. Stake minimum 1 STX to participate in voting
 2. Create investment proposals
 3. Vote on active proposals
-4. Execute passed proposals after review period
-5. Unstake tokens when desired
-
-## Security Features
-
-- Minimum stake requirement prevents vote manipulation
-- 24-hour proposal review period
-- Owner-only access for critical functions
-- Balance verification for unstaking
-- Proposal expiration checks
-
-## Future Improvements
-
-- Quadratic voting implementation
-- Multi-asset support
-- Automated profit distribution
-- Proposal delegation system
-- Advanced treasury management
-- Risk assessment framework
+4. Proposals require 30% of total pool balance participation
+5. Execute passed proposals after review period
+6. Unstake tokens when desired
 
 ## Contributing
 

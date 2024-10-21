@@ -8,9 +8,11 @@
 (define-constant err-proposal-expired (err u103))
 (define-constant err-insufficient-stake (err u104))
 (define-constant err-quorum-not-reached (err u105))
+(define-constant err-invalid-amount (err u106))
+(define-constant err-invalid-description (err u107))
 (define-constant proposal-expiration-blocks u144)
 (define-constant minimum-stake-to-vote u1000000)
-(define-constant quorum-percentage u30) ;; 30% of total pool balance needed
+(define-constant quorum-percentage u30)
 
 ;; Define data variables
 (define-data-var total-pool-balance uint u0)
@@ -33,17 +35,30 @@
   }
 )
 
-;; Helper function to calculate quorum threshold
+;; Helper functions
 (define-private (calculate-quorum-threshold)
   (/ (* (var-get total-pool-balance) quorum-percentage) u100)
 )
 
-;; Define owner-only modifier
 (define-private (is-contract-owner)
   (is-eq tx-sender contract-owner)
 )
 
-;; Define functions
+(define-private (is-valid-description (description (string-ascii 256)))
+  (and 
+    (not (is-eq description ""))
+    (<= (len description) u256)
+  )
+)
+
+(define-private (is-valid-amount (amount uint))
+  (and 
+    (> amount u0)
+    (<= amount (var-get total-pool-balance))
+  )
+)
+
+;; Main functions
 (define-public (stake (amount uint))
   (let ((current-balance (default-to u0 (map-get? balances tx-sender))))
     (if (>= (stx-get-balance tx-sender) amount)
@@ -73,7 +88,12 @@
 )
 
 (define-public (create-proposal (description (string-ascii 256)) (amount uint) (beneficiary principal))
-  (if (is-contract-owner)
+  (begin
+    (asserts! (is-contract-owner) err-owner-only)
+    (asserts! (is-valid-description description) err-invalid-description)
+    (asserts! (is-valid-amount amount) err-invalid-amount)
+    (asserts! (not (is-eq beneficiary tx-sender)) err-invalid-proposal)
+    
     (let ((new-proposal-id (+ (var-get proposal-count) u1)))
       (map-set proposals new-proposal-id
         {
@@ -91,7 +111,6 @@
       (var-set proposal-count new-proposal-id)
       (ok new-proposal-id)
     )
-    err-owner-only
   )
 )
 
