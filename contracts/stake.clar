@@ -5,6 +5,8 @@
 (define-constant err-owner-only (err u100))
 (define-constant err-not-enough-balance (err u101))
 (define-constant err-invalid-proposal (err u102))
+(define-constant err-proposal-expired (err u103))
+(define-constant proposal-expiration-blocks u144) ;; Approximately 1 day (assuming 10-minute block times)
 
 ;; Define data variables
 (define-data-var total-pool-balance uint u0)
@@ -21,7 +23,8 @@
     votes-for: uint,
     votes-against: uint,
     status: (string-ascii 20),
-    beneficiary: principal
+    beneficiary: principal,
+    created-at: uint
   }
 )
 
@@ -74,7 +77,8 @@
           votes-for: u0,
           votes-against: u0,
           status: "active",
-          beneficiary: beneficiary
+          beneficiary: beneficiary,
+          created-at: block-height
         }
       )
       (var-set proposal-count new-proposal-id)
@@ -90,6 +94,7 @@
     (proposal (unwrap! (map-get? proposals proposal-id) err-invalid-proposal))
     (user-balance (default-to u0 (map-get? balances tx-sender)))
   )
+    (asserts! (< (- block-height (get created-at proposal)) proposal-expiration-blocks) err-proposal-expired)
     (if vote-for
       (map-set proposals proposal-id
         (merge proposal { votes-for: (+ (get votes-for proposal) user-balance) })
@@ -108,6 +113,7 @@
     (let (
       (proposal (unwrap! (map-get? proposals proposal-id) err-invalid-proposal))
     )
+      (asserts! (< (- block-height (get created-at proposal)) proposal-expiration-blocks) err-proposal-expired)
       (if (and
         (is-eq (get status proposal) "active")
         (> (get votes-for proposal) (get votes-against proposal))
@@ -119,7 +125,7 @@
           )
           (ok true)
         )
-        (err u103)
+        (err u104)
       )
     )
     err-owner-only
@@ -141,4 +147,13 @@
 ;; Get proposal details
 (define-read-only (get-proposal (proposal-id uint))
   (map-get? proposals proposal-id)
+)
+
+;; Check if a proposal has expired
+(define-read-only (is-proposal-expired (proposal-id uint))
+  (let (
+    (proposal (unwrap! (map-get? proposals proposal-id) false))
+  )
+    (>= (- block-height (get created-at proposal)) proposal-expiration-blocks)
+  )
 )
